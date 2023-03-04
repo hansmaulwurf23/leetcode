@@ -3,17 +3,22 @@ class Solution:
         if len(s) == 1:
             return s
 
-        palis = []
-        o = 0
-        for o in reversed([i for i in range(1, len(s)) if s[i] == s[0]]):
-            substr = s[:o+1]
-            if self.is_palindrom(substr):
-                palis.append(substr)
+        lp = s[0]
+        rest = s
+        while rest:
+            o = 0
+            for o in (i for i in range(len(rest) - 1, 0, -1) if rest[i] == rest[0]):
+                substr = rest[:o+1]
+                if self.is_palindrom(substr):
+                    if len(substr) > len(lp):
+                        lp = substr
+                    break
+
+            rest = rest[1:]
+            if len(rest) < len(lp):
                 break
 
-        if not palis or len(s) > len(palis[0]):
-            palis.append(self.longestPalindrome(s[1:]))
-        return max(palis, key=len)
+        return lp
 
     def is_palindrom(self, s):
         l, r = 0, len(s) - 1
