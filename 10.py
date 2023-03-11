@@ -1,81 +1,92 @@
+from itertools import takewhile
+
+
 class Solution:
     def isMatch(self, s: str, p: str) -> bool:
-        si, pi = 0, 0   # string index and pattern index
+        return self.rest_match(s, self.simplify_pattern(self.split_pattern(p)), 0, 0)
 
-        # if pattern contains repeats but ends with non-repeats, we remove the non repeat part first
-        if (li := p.rfind('*')) >= 0 and li < len(p) - 1:
-            end_pattern = p[li+1:]
-            # match from the back of the pattern and the back of the string, and remove from s and p
-            for pc in reversed(end_pattern):
-                if s[-1] != pc and pc != '.':
-                    return False
-                s = s[:len(s)-1]
-            p = p[:li+1]
-
-        while pi < len(p) and si < len(s):
-            # pc is the pattern character we are currently looking for (can be '.')
-            pc = p[pi]
-            repeat = False
-            if pi + 1 < len(p) and p[pi + 1] == '*':
-                repeat = True
-                pi += 1
-
-            if repeat:
-                # 'terminating character' of the repeating struct, ie a*b -> b is tc
-                tc = None
-                if len(p) > pi + 1 and not (len(p) > pi + 2 and p[pi+2] == '*'):
-                    tc = p[pi+1]
-
-                if pc == '.':
-                    if tc is not None:
-                        while si < len(s) and s[si] != tc:
-                            si += 1
-                    else:
-                        while si < len(s):
-                            si += 1
-                else:
-                    min_occs = 0
-                    # if tc is the pc, structs like a*aaa means we need to match at least 3 a's
-                    while pc == tc:
-                        min_occs += 1
-                        if pi + 1 >= len(p) or p[pi + 1] != tc:
-                            break
-                        pi += 1
-
-                    while si < len(s) and pc == s[si]:
-                        si += 1
-                        if min_occs > 0:
-                            min_occs -= 1
-                    if min_occs:
-                        return False
-                pi += 1
-            else:
-                if s[si] != pc and pc != '.':
-                    return False
-                else:
-                    si += 1
-                    pi += 1
-
-        # if smth left of pattern, check if it is only optionals
-        while pi + 1 < len(p):
-            if p[pi+1] == '*':
+    def split_pattern(self, p: str) -> list:
+        pi = 0
+        elems = []
+        while pi < len(p):
+            c = p[pi]
+            if pi + 1 < len(p) and p[pi+1] == '*':
+                elems.append((c, True))
                 pi += 2
             else:
+                elems.append((c, False))
+                pi += 1
+        return elems
+
+    def simplify_pattern(self, p: list) -> list:
+        res = [p[0]]
+        pi = 1
+        while pi < len(p):
+            (pc, pr), (lpc, lpr) = p[pi], res[-1]
+            # at least one of the pattern elements does not repeat (*)
+            if not (lpr and pr):
+                res.append(p[pi])
+            # both repeat
+            elif lpc != pc:
+                if pc == '.':
+                    # replace pattern character with . since its more generic
+                    res[-1][0] = pc
+                else:
+                    res.append(p[pi])
+            pi += 1
+        print(f'simplified {self.tup2str(p)} to {self.tup2str(res)}')
+        return res
+
+    def tup2str(self, p: list) -> str:
+        return "".join(map(lambda x: x[0] + ("*" if x[1] else ""), p))
+
+    def rest_match(self, s: str, pattern: list, si: int, pi: int) -> bool:
+        #print(f'{s[si:]} ==~ {"".join(map(lambda x: x[0] + "*" if x[1] else "", pattern[pi:]))}')
+        # string already complete
+        if si >= len(s):
+            if pi < len(pattern):
+                # pattern is repeat -> optional -> could still be a match
+                if pattern[pi][1]:
+                    return self.rest_match(s, pattern, si, pi+1)
+                else:
+                    return False
+            else:
+                return True
+
+        # pattern already complete
+        if pi >= len(pattern):
+            # string cannot be complete since this is handled above
+            return False
+
+        pc, repeat = pattern[pi]
+        if repeat:
+            return any([self.rest_match(s, pattern, i+1, pi+1) for i in
+                        takewhile(lambda i: i == si-1 or i >= len(s) or s[i] == pc or pc == '.', range(si-1, len(s)+1))])
+        else:
+            if pc == '.' or pc == s[si]:
+                return self.rest_match(s, pattern, si+1, pi+1)
+            else:
                 return False
-
-        return pi >= len(p) and si >= len(s)
-
+    
 
 if __name__ == '__main__':
-    s = Solution()
-    assert s.isMatch('aa', 'a') is False
-    assert s.isMatch('aa', 'a*') is True
-    assert s.isMatch('aaa', 'a*a') is True
-    assert s.isMatch('ab', '.*') is True
-    assert s.isMatch('ab', '.*..c*') is True
-    assert s.isMatch('a', 'ab*a') is False
-    assert s.isMatch('aaab', 'a*') is False
-    assert s.isMatch('aaab', 'a*b') is True
-    assert s.isMatch('aaab', 'c*a*b*') is True
-    assert s.isMatch('bbbba', '.*a*a') is True
-    assert s.isMatch('aaa', 'ab*a*c*a') is True
+    sol = Solution()
+    test_cases = [
+        ('aa', 'a', False),
+        ('aa', 'a*', True),
+        ('aaa', 'a*a', True),
+        ('ab', '.*', True),
+        ('ab', '.*..c*', True),
+        ('a', 'ab*a', False),
+        ('aaab', 'a*', False),
+        ('aaab', 'a*b', True),
+        ('aaab', 'c*a*b*', True),
+        ('bbbba', '.*a*a', True),
+        ('aaa', 'ab*a*c*a', True),
+        ('aaaaaaaaaaaaaaaaaaab', 'a*a*a*a*a*a*a*a*a*a*', False),
+    ]
+
+    for s, p, r in test_cases:
+        x = sol.isMatch(s, p)
+        if x != r:
+            assert False, f'matching {s} with {p} got {x} expected {r}'
